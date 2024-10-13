@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import logogit from "../app/assets/Octicons-mark-github.svg";
+import Image from 'next/image';
 
 interface ToolsBarProps {
   format: { width: number; height: number };
