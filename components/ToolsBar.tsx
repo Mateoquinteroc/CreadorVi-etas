@@ -37,12 +37,35 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
   cornerRadius,
   setCornerRadius,
 }) => {
+  const [rowsError, setRowsError] = React.useState('');
+  const [columnsError, setColumnsError] = React.useState('');
+
   const handleNumberInput = (
     value: string,
-    setter: React.Dispatch<React.SetStateAction<number>>
+    setter: React.Dispatch<React.SetStateAction<number>>,
+    setError?: React.Dispatch<React.SetStateAction<string>>
   ) => {
-    const num = value === '' ? 0 : Number(value);
-    setter(num);
+    if (value === '') {
+      setter(0);
+      setError && setError('');
+      return;
+    }
+
+    const num = Number(value);
+
+    if (isNaN(num)) {
+      setter(0);
+      setError && setError('');
+      return;
+    }
+
+    if (num < 1) {
+      setError && setError('Value must be at least 1');
+    } else {
+      setError && setError('');
+    }
+
+    setter(Math.max(1, num));
   };
 
   return (
@@ -75,8 +98,9 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
           id="rows"
           type="number"
           value={rows || ''}
-          onChange={(e) => handleNumberInput(e.target.value, setRows)}
+          onChange={(e) => handleNumberInput(e.target.value, setRows, setRowsError)}
         />
+        {rowsError && <p className="text-sm text-destructive">{rowsError}</p>}
       </div>
       
       <div className="space-y-2">
@@ -85,8 +109,9 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
           id="columns"
           type="number"
           value={columns || ''}
-          onChange={(e) => handleNumberInput(e.target.value, setColumns)}
+          onChange={(e) => handleNumberInput(e.target.value, setColumns, setColumnsError)}
         />
+        {columnsError && <p className="text-sm text-destructive">{columnsError}</p>}
       </div>
       
       <div className="flex items-center space-x-2">
