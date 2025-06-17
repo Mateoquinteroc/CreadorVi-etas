@@ -23,46 +23,23 @@ const BulletGenerator: React.FC<BulletGeneratorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [bullets, setBullets] = useState<
+    { x: number; y: number; width: number; height: number }[]
+  >([]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Set canvas dimensions based on format
-    canvas.width = format.width;
-    canvas.height = format.height;
-
-    // Calculate scaling based on container size
-    const containerWidth = container.clientWidth * 0.9;
-    const containerHeight = container.clientHeight * 0.9;
-    const scaleX = containerWidth / format.width;
-    const scaleY = containerHeight / format.height;
-    const newScale = Math.min(scaleX, scaleY) * 0.9; // Reduce size by 10%
-    setScale(newScale);
-
-    // Clear the canvas
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     const totalGapWidth = (columns + 1) * gapSize;
     const totalGapHeight = (rows + 1) * gapSize;
-    const maxBulletWidth = (canvas.width - totalGapWidth) / columns;
-    const maxBulletHeight = (canvas.height - totalGapHeight) / rows;
+    const maxBulletWidth = (format.width - totalGapWidth) / columns;
+    const maxBulletHeight = (format.height - totalGapHeight) / rows;
+    const newBullets: { x: number; y: number; width: number; height: number }[] = [];
 
-    // Draw bullets
     if (rows === 1) {
-      // Ajustar para una sola fila
-      const squareSize = (canvas.width - totalGapWidth) / columns; // Tamaño cuadrado basado en el ancho disponible
+      const squareSize = (format.width - totalGapWidth) / columns;
       for (let col = 0; col < columns; col++) {
         const x = gapSize + col * (squareSize + gapSize);
-        const y = (canvas.height - squareSize) / 2; // Centrar verticalmente
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 2;
-        roundRect(ctx, x, y, squareSize, squareSize, cornerRadius); // Dibuja el cuadrado
+        const y = (format.height - squareSize) / 2;
+        newBullets.push({ x, y, width: squareSize, height: squareSize });
       }
     } else {
       for (let row = 0; row < rows; row++) {
@@ -75,16 +52,47 @@ const BulletGenerator: React.FC<BulletGeneratorProps> = ({
             height *= 0.7 + Math.random() * 0.3;
           }
 
-          const x = gapSize + col * (maxBulletWidth + gapSize) + (maxBulletWidth - width) / 2;
-          const y = gapSize + row * (maxBulletHeight + gapSize) + (maxBulletHeight - height) / 2;
-
-          ctx.strokeStyle = 'black';
-          ctx.lineWidth = 2;
-          roundRect(ctx, x, y, width, height, cornerRadius);
+          const x =
+            gapSize + col * (maxBulletWidth + gapSize) + (maxBulletWidth - width) / 2;
+          const y =
+            gapSize +
+            row * (maxBulletHeight + gapSize) +
+            (maxBulletHeight - height) / 2;
+          newBullets.push({ x, y, width, height });
         }
       }
     }
-  }, [format, rows, columns, isSymmetrical, gapSize, cornerRadius]);
+
+    setBullets(newBullets);
+  }, [format, rows, columns]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = format.width;
+    canvas.height = format.height;
+
+    const containerWidth = container.clientWidth * 0.9;
+    const containerHeight = container.clientHeight * 0.9;
+    const scaleX = containerWidth / format.width;
+    const scaleY = containerHeight / format.height;
+    const newScale = Math.min(scaleX, scaleY) * 0.9;
+    setScale(newScale);
+
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    bullets.forEach(({ x, y, width, height }) => {
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      roundRect(ctx, x, y, width, height, cornerRadius);
+    });
+  }, [format, cornerRadius, bullets]);
 
   const roundRect = (
     ctx: CanvasRenderingContext2D,
