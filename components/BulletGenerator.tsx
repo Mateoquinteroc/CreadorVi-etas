@@ -11,6 +11,8 @@ interface ExportCanvasProps {
   columns: number;
   gapSize: number;
   cornerRadius: number;
+  canvasMargin: number;
+  strokeWidth: number;
   exportTrigger: number;
   exportFormat: ExportFormat;
   backgroundType: BackgroundType;
@@ -27,6 +29,8 @@ const ExportCanvas: React.FC<ExportCanvasProps> = ({
   columns,
   gapSize,
   cornerRadius,
+  canvasMargin,
+  strokeWidth,
   exportTrigger,
   exportFormat,
   backgroundType,
@@ -63,17 +67,20 @@ const ExportCanvas: React.FC<ExportCanvasProps> = ({
         // Enforce the canvas virtual grid ratio for vertical sizing
         const maxRow = columns; 
 
-        const cellWidth = (format.width - (columns + 1) * gapSize) / columns;
-        const cellHeight = (format.height - (maxRow + 1) * gapSize) / maxRow;
+        const innerWidth = format.width - 2 * canvasMargin;
+        const innerHeight = format.height - 2 * canvasMargin;
+
+        const cellWidth = (innerWidth - (columns + 1) * gapSize) / columns;
+        const cellHeight = (innerHeight - (maxRow + 1) * gapSize) / maxRow;
 
       return items.map((item) => ({
-        x: gapSize + item.x * (cellWidth + gapSize),
-        y: gapSize + item.y * (cellHeight + gapSize),
+        x: canvasMargin + gapSize + item.x * (cellWidth + gapSize),
+        y: canvasMargin + gapSize + item.y * (cellHeight + gapSize),
         width: item.w * cellWidth + (item.w - 1) * gapSize,
         height: item.h * cellHeight + (item.h - 1) * gapSize,
       }));
     },
-    [format, columns, gapSize]
+    [format, columns, gapSize, canvasMargin]
   );
 
   // Handle export when trigger changes
@@ -100,7 +107,7 @@ const ExportCanvas: React.FC<ExportCanvasProps> = ({
     const pixelBullets = gridToPixels(panelItems);
     pixelBullets.forEach(({ x, y, width, height }) => {
       exportCtx.strokeStyle = 'black';
-      exportCtx.lineWidth = 2;
+      exportCtx.lineWidth = strokeWidth;
       roundRect(exportCtx, x, y, width, height, cornerRadius);
     });
 

@@ -49,6 +49,8 @@ export default function Home() {
   const [isSymmetrical, setIsSymmetrical] = useState(true);
   const [gapSize, setGapSize] = useState(10);
   const [cornerRadius, setCornerRadius] = useState(0);
+  const [canvasMargin, setCanvasMargin] = useState(20);
+  const [strokeWidth, setStrokeWidth] = useState(2);
 
   // Panel items state — initialized with default grid
   const [panelItems, setPanelItems] = useState<PanelItem[]>(() =>
@@ -99,14 +101,22 @@ export default function Home() {
   const handleAddPanel = useCallback(() => {
     const w = Math.max(1, Math.floor(VIRTUAL_GRID / columns));
     const h = Math.max(1, Math.floor(VIRTUAL_GRID / rows));
-    const newPanel: PanelItem = {
-      id: `panel-${Date.now()}`,
-      x: 0,
-      y: VIRTUAL_GRID, // Place at the bottom, gridstack will auto position
-      w,
-      h,
-    };
-    setPanelItems(prev => [...prev, newPanel]);
+    
+    setPanelItems(prev => {
+      const maxNum = prev.reduce((max, item) => {
+        const num = parseInt(item.id.replace('panel-', ''), 10);
+        return !isNaN(num) && num > max ? num : max;
+      }, 0);
+      
+      const newPanel: PanelItem = {
+        id: `panel-${maxNum + 1}`,
+        x: 0,
+        y: VIRTUAL_GRID, // Place at the bottom, gridstack will auto position
+        w,
+        h,
+      };
+      return [...prev, newPanel];
+    });
   }, [columns, rows]);
 
   return (
@@ -126,6 +136,8 @@ export default function Home() {
             columns={columns}
             gapSize={gapSize}
             cornerRadius={cornerRadius}
+            canvasMargin={canvasMargin}
+            strokeWidth={strokeWidth}
             onLayoutChange={handleLayoutChange}
             panelItems={panelItems}
             virtualGrid={VIRTUAL_GRID}
@@ -156,6 +168,10 @@ export default function Home() {
           setGapSize={setGapSize}
           cornerRadius={cornerRadius}
           setCornerRadius={setCornerRadius}
+          canvasMargin={canvasMargin}
+          setCanvasMargin={setCanvasMargin}
+          strokeWidth={strokeWidth}
+          setStrokeWidth={setStrokeWidth}
           exportFormat={exportFormat}
           setExportFormat={setExportFormat}
           backgroundType={backgroundType}
@@ -170,6 +186,8 @@ export default function Home() {
         columns={VIRTUAL_GRID}
         gapSize={gapSize}
         cornerRadius={cornerRadius}
+        canvasMargin={canvasMargin}
+        strokeWidth={strokeWidth}
         exportTrigger={exportTrigger}
         exportFormat={exportFormat}
         backgroundType={backgroundType}

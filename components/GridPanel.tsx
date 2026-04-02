@@ -18,6 +18,8 @@ interface GridPanelProps {
   columns: number;
   gapSize: number;
   cornerRadius: number;
+  canvasMargin: number;
+  strokeWidth: number;
   onLayoutChange: (items: PanelItem[]) => void;
   panelItems: PanelItem[];
   virtualGrid: number;
@@ -29,6 +31,8 @@ const GridPanel: React.FC<GridPanelProps> = ({
   columns,
   gapSize,
   cornerRadius,
+  canvasMargin,
+  strokeWidth,
   onLayoutChange,
   panelItems,
   virtualGrid,
@@ -39,6 +43,11 @@ const GridPanel: React.FC<GridPanelProps> = ({
   const isUpdatingFromProps = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
+
+  const propRefs = useRef({ cornerRadius, strokeWidth });
+  useEffect(() => {
+    propRefs.current = { cornerRadius, strokeWidth };
+  }, [cornerRadius, strokeWidth]);
 
   // Update layout dimensions safely
   useEffect(() => {
@@ -65,6 +74,87 @@ const GridPanel: React.FC<GridPanelProps> = ({
     return () => observer.disconnect();
   }, [format.width, format.height]);
 
+  const createPanelDOM = useCallback((item: PanelItem) => {
+    const el = document.createElement('div');
+    el.className = 'grid-stack-item';
+    el.setAttribute('gs-id', item.id);
+    el.setAttribute('gs-x', String(item.x));
+    el.setAttribute('gs-y', String(item.y));
+    el.setAttribute('gs-w', String(item.w));
+    el.setAttribute('gs-h', String(item.h));
+    el.setAttribute('gs-min-w', '1');
+    el.setAttribute('gs-min-h', '1');
+
+    const content = document.createElement('div');
+    content.className = 'grid-stack-item-content panel-cell group cursor-pointer';
+    content.style.borderRadius = `${propRefs.current.cornerRadius}px`;
+    content.style.borderWidth = `${propRefs.current.strokeWidth}px`;
+
+    // Panel number label
+    const label = document.createElement('span');
+    label.className = 'panel-label';
+    label.textContent = item.id.replace('panel-', '').split('-').pop() || '';
+    content.appendChild(label);
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.innerHTML = '×';
+    deleteBtn.title = 'Eliminar';
+    deleteBtn.className = 'absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-md hover:bg-red-600 z-50 opacity-0 transition-opacity cursor-pointer text-sm leading-none';
+    deleteBtn.onmousedown = (e) => { e.stopPropagation(); };
+    deleteBtn.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (gridInstance.current) { gridInstance.current.removeWidget(el); }
+    };
+    content.appendChild(deleteBtn);
+
+    // Duplicate button
+    const dupBtn = document.createElement('button');
+    dupBtn.innerHTML = '⧉';
+    dupBtn.title = 'Duplicar';
+    dupBtn.className = 'absolute top-2 right-10 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-md hover:bg-blue-600 z-50 opacity-0 transition-opacity cursor-pointer text-sm leading-none';
+    dupBtn.onmousedown = (e) => { e.stopPropagation(); };
+    dupBtn.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (gridInstance.current) {
+        const node = (el as any).gridstackNode;
+        const w = node?.w || parseInt(el.getAttribute('gs-w') || '1');
+        const h = node?.h || parseInt(el.getAttribute('gs-h') || '1');
+        const x = node?.x ?? parseInt(el.getAttribute('gs-x') || '0');
+        const y = node?.y ?? parseInt(el.getAttribute('gs-y') || '0');
+        let maxNum = 0;
+        gridInstance.current.getGridItems().forEach(elNode => {
+           const id = elNode.getAttribute('gs-id');
+           if (id && typeof id === 'string') {
+               const num = parseInt(id.replace('panel-', ''), 10);
+               if (!isNaN(num) && num > maxNum) maxNum = num;
+           }
+        });
+        const newId = `panel-${maxNum + 1}`;
+        const newEl = createPanelDOM({ id: newId, x, y, w, h });
+        gridInstance.current.addWidget(newEl);
+      }
+    };
+    content.appendChild(dupBtn);
+
+    // Explicit JS selection
+    content.onmousedown = () => {
+      const isSelected = content.classList.contains('ring-4');
+      document.querySelectorAll('.panel-cell').forEach(cell => {
+        cell.classList.remove('ring-4', 'ring-blue-500');
+        cell.querySelectorAll('button').forEach(btn => btn.classList.replace('opacity-100', 'opacity-0'));
+      });
+      if (!isSelected) {
+        content.classList.add('ring-4', 'ring-blue-500');
+        deleteBtn.classList.replace('opacity-0', 'opacity-100');
+        dupBtn.classList.replace('opacity-0', 'opacity-100');
+      }
+    };
+
+    el.appendChild(content);
+    return el;
+  }, [cornerRadius, strokeWidth]);
+
   // Initialize GridStack
   useEffect(() => {
     if (!gridRef.current) return;
@@ -78,65 +168,16 @@ const GridPanel: React.FC<GridPanelProps> = ({
     // Clear the container
     gridRef.current.innerHTML = '';
 
-    const createPanelDOM = (item: PanelItem) => {
-      const el = document.createElement('div');
-      el.className = 'grid-stack-item';
-      el.setAttribute('gs-id', item.id);
-      el.setAttribute('gs-x', String(item.x));
-      el.setAttribute('gs-y', String(item.y));
-      el.setAttribute('gs-w', String(item.w));
-      el.setAttribute('gs-h', String(item.h));
-      el.setAttribute('gs-min-w', '1');
-      el.setAttribute('gs-min-h', '1');
-
-      const content = document.createElement('div');
-      content.className = 'grid-stack-item-content panel-cell group cursor-pointer';
-      content.style.borderRadius = `${cornerRadius}px`;
-
-      // Panel number label
-      const label = document.createElement('span');
-      label.className = 'panel-label';
-      label.textContent = item.id.replace('panel-', '').split('-').pop() || '';
-      content.appendChild(label);
-
-      // Delete button
-      const deleteBtn = document.createElement('button');
-      deleteBtn.innerHTML = '×';
-      deleteBtn.className = 'absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-md hover:bg-red-600 z-50 opacity-0 transition-opacity cursor-pointer text-sm leading-none';
-      deleteBtn.onmousedown = (e) => {
-        e.stopPropagation(); // prevent gridstack drag
-      };
-      deleteBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (gridInstance.current) {
-           gridInstance.current.removeWidget(el);
-        }
-      };
-      content.appendChild(deleteBtn);
-
-      // Explicit JS selection
-      content.onmousedown = () => {
-        const isSelected = content.classList.contains('ring-4');
-        document.querySelectorAll('.panel-cell').forEach(cell => {
-          cell.classList.remove('ring-4', 'ring-blue-500');
-          cell.querySelector('button')?.classList.replace('opacity-100', 'opacity-0');
-        });
-        if (!isSelected) {
-          content.classList.add('ring-4', 'ring-blue-500');
-          deleteBtn.classList.replace('opacity-0', 'opacity-100');
-        }
-      };
-
-      el.appendChild(content);
-      return el;
-    };
-
     // Create grid items in the DOM
     panelItems.forEach((item) => {
       const el = createPanelDOM(item);
       gridRef.current!.appendChild(el);
     });
+
+    // Calculate scaled padding and inner height
+    const scale = format.width > 0 ? dimensions.w / format.width : 1;
+    const paddingPx = canvasMargin * scale;
+    const innerHeight = dimensions.h - 2 * paddingPx;
 
     // Initialize GridStack logic
     const grid = GridStack.init(
@@ -144,7 +185,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
         column: virtualGrid,
         maxRow: 0,
         row: 0,
-        cellHeight: dimensions.h > 0 ? (dimensions.h / virtualGrid) : 'auto',
+        cellHeight: innerHeight > 0 ? (innerHeight / virtualGrid) : 'auto',
         margin: gapSize,
         float: true,
         animate: true,
@@ -167,7 +208,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
       if (isUpdatingFromProps.current) return;
 
       const allNodes = grid.getGridItems().map((el) => {
-        const node = el.gridstackNode;
+        const node = (el as any).gridstackNode;
         return {
           id: node?.id || el.getAttribute('gs-id') || '',
           x: node?.x ?? 0,
@@ -180,7 +221,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
       onLayoutChange(allNodes);
     };
 
-    grid.on('change removed', handleChange as any);
+    grid.on('added change removed', handleChange as any);
 
     // Auto-shrink logic when a panel is resized and pushes other panels
     let preResizeState: Record<string, any> = {};
@@ -224,8 +265,15 @@ const GridPanel: React.FC<GridPanelProps> = ({
             updated = true;
           }
 
+          const MIN_SIZE = 2; // El punto de control: tamaño mínimo permitido antes de sobreponerse (escapar)
+
           if (updated) {
-            updates.push({ el: n.el, x: newX, y: newY, w: newW, h: newH });
+            if (newW >= MIN_SIZE && newH >= MIN_SIZE) {
+              updates.push({ el: n.el, x: newX, y: newY, w: newW, h: newH });
+            }
+            // Si el bloque se haría más pequeño que MIN_SIZE, no hacemos nada.
+            // Esto permite que GridStack lo mantenga en su nueva posición desplazada
+            // (habrá saltado por encima de la viñeta que lo oprimía).
           }
         }
       });
@@ -234,11 +282,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
          isUpdatingFromProps.current = true;
          // (grid as any).batchUpdate(); // Optionally batch updates
          updates.forEach(u => {
-             if ((u.w ?? 0) <= 0 || (u.h ?? 0) <= 0) {
-                 grid.removeWidget(u.el!);
-             } else {
-                 grid.update(u.el!, { x: u.x, y: u.y, w: u.w, h: u.h });
-             }
+             grid.update(u.el!, { x: u.x, y: u.y, w: u.w, h: u.h });
          });
          // (grid as any).commit();
          isUpdatingFromProps.current = false;
@@ -264,55 +308,11 @@ const GridPanel: React.FC<GridPanelProps> = ({
     
     panelItems.forEach(item => {
       if (!existingIds.includes(item.id)) {
-        // Build DOM for the newly added item (copy of native DOM creation)
-        const el = document.createElement('div');
-        el.className = 'grid-stack-item';
-        el.setAttribute('gs-id', item.id);
-        el.setAttribute('gs-x', String(item.x));
-        el.setAttribute('gs-y', String(item.y));
-        el.setAttribute('gs-w', String(item.w));
-        el.setAttribute('gs-h', String(item.h));
-        el.setAttribute('gs-min-w', '1');
-        el.setAttribute('gs-min-h', '1');
-        
-        const content = document.createElement('div');
-        content.className = 'grid-stack-item-content panel-cell group cursor-pointer';
-        content.style.borderRadius = `${cornerRadius}px`;
-
-        const label = document.createElement('span');
-        label.className = 'panel-label';
-        label.textContent = item.id.replace('panel-', '').split('-').pop() || '';
-        content.appendChild(label);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerHTML = '×';
-        deleteBtn.className = 'absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-md hover:bg-red-600 z-50 opacity-0 transition-opacity cursor-pointer text-sm leading-none';
-        deleteBtn.onmousedown = (e) => { e.stopPropagation(); };
-        deleteBtn.onclick = (e) => {
-          e.preventDefault(); e.stopPropagation();
-          gridInstance.current?.removeWidget(el);
-        };
-        content.appendChild(deleteBtn);
-
-        content.onmousedown = () => {
-          const isSelected = content.classList.contains('ring-4');
-          document.querySelectorAll('.panel-cell').forEach(cell => {
-            cell.classList.remove('ring-4', 'ring-blue-500');
-            cell.querySelector('button')?.classList.replace('opacity-100', 'opacity-0');
-          });
-          if (!isSelected) {
-            content.classList.add('ring-4', 'ring-blue-500');
-            deleteBtn.classList.replace('opacity-0', 'opacity-100');
-          }
-        };
-
-        el.appendChild(content);
-        
-        // Add to gridstack seamlessly
+        const el = createPanelDOM(item);
         grid.addWidget(el);
       }
     });
-  }, [panelItems, cornerRadius, isReady]);
+  }, [panelItems, createPanelDOM, isReady]);
 
   // Dynamically update margins
   useEffect(() => {
@@ -324,9 +324,12 @@ const GridPanel: React.FC<GridPanelProps> = ({
   // Dynamically update cell height
   useEffect(() => {
     if (gridInstance.current && isReady && dimensions.h > 0) {
-      gridInstance.current.cellHeight(dimensions.h / virtualGrid);
+      const scale = format.width > 0 ? dimensions.w / format.width : 1;
+      const paddingPx = canvasMargin * scale;
+      const innerHeight = dimensions.h - 2 * paddingPx;
+      gridInstance.current.cellHeight(Math.max(1, innerHeight / virtualGrid));
     }
-  }, [dimensions.h, virtualGrid, isReady]);
+  }, [dimensions.h, dimensions.w, format.width, virtualGrid, canvasMargin, isReady]);
 
   // Update corner radius on existing items without re-init
   useEffect(() => {
@@ -337,13 +340,30 @@ const GridPanel: React.FC<GridPanelProps> = ({
     });
   }, [cornerRadius]);
 
+  // Update stroke width on existing items without re-init
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const cells = gridRef.current.querySelectorAll('.panel-cell');
+    cells.forEach((cell) => {
+      (cell as HTMLElement).style.borderWidth = `${strokeWidth}px`;
+    });
+  }, [strokeWidth]);
+
+  const scale = format.width > 0 ? dimensions.w / format.width : 1;
+  const paddingPx = canvasMargin * scale;
+
   return (
     <div className="grid-panel-wrapper" ref={wrapperRef}>
       <div 
         className="canvas-container"
-        style={{ width: dimensions.w, height: dimensions.h }}
+        style={{ 
+          width: dimensions.w, 
+          height: dimensions.h,
+          padding: `${paddingPx}px`,
+          boxSizing: 'border-box'
+        }}
       >
-        <div ref={gridRef} className="grid-stack" />
+        <div ref={gridRef} className="grid-stack w-full h-full relative" />
       </div>
       <style jsx global>{`
         .grid-panel-wrapper {

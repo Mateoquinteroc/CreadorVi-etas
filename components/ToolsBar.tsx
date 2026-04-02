@@ -53,6 +53,10 @@ interface ToolsBarProps {
   setGapSize: React.Dispatch<React.SetStateAction<number>>;
   cornerRadius: number;
   setCornerRadius: React.Dispatch<React.SetStateAction<number>>;
+  canvasMargin: number;
+  setCanvasMargin: React.Dispatch<React.SetStateAction<number>>;
+  strokeWidth: number;
+  setStrokeWidth: React.Dispatch<React.SetStateAction<number>>;
   exportFormat: ExportFormat;
   setExportFormat: React.Dispatch<React.SetStateAction<ExportFormat>>;
   backgroundType: BackgroundType;
@@ -73,6 +77,10 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
   setGapSize,
   cornerRadius,
   setCornerRadius,
+  canvasMargin,
+  setCanvasMargin,
+  strokeWidth,
+  setStrokeWidth,
   exportFormat,
   setExportFormat,
   backgroundType,
@@ -213,6 +221,20 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="canvasMargin" className="text-xs">
+          Márgenes del formato: <span className="font-mono text-muted-foreground">{canvasMargin}px</span>
+        </Label>
+        <Slider
+          id="canvasMargin"
+          min={0}
+          max={200}
+          step={5}
+          value={[canvasMargin]}
+          onValueChange={(value) => setCanvasMargin(value[0])}
+        />
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="cornerRadius" className="text-xs">
           Radio de esquinas: <span className="font-mono text-muted-foreground">{cornerRadius}px</span>
         </Label>
@@ -223,6 +245,20 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
           step={1}
           value={[cornerRadius]}
           onValueChange={(value) => setCornerRadius(value[0])}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="strokeWidth" className="text-xs">
+          Grosor de línea: <span className="font-mono text-muted-foreground">{strokeWidth}px</span>
+        </Label>
+        <Slider
+          id="strokeWidth"
+          min={0}
+          max={20}
+          step={1}
+          value={[strokeWidth]}
+          onValueChange={(value) => setStrokeWidth(value[0])}
         />
       </div>
 
