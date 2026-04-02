@@ -64,28 +64,58 @@ const ExportCanvas: React.FC<ExportCanvasProps> = ({
    */
     const gridToPixels = useCallback(
       (items: PanelItem[]) => {
-        // Enforce the canvas virtual grid ratio for vertical sizing
-        const maxRow = columns; 
+        const container = document.getElementById('export-canvas-container');
+        if (!container) return [];
 
-        const innerWidth = format.width - 2 * canvasMargin;
-        const innerHeight = format.height - 2 * canvasMargin;
+        const containerRect = container.getBoundingClientRect();
+        // Since container width represents format.width, we find the global physical multiplier
+        const scaleToFormat = format.width / containerRect.width;
 
-        const cellWidth = (innerWidth - (columns + 1) * gapSize) / columns;
-        const cellHeight = (innerHeight - (maxRow + 1) * gapSize) / maxRow;
+        return items.map((item) => {
+          const itemEl = document.querySelector(`.grid-stack-item[gs-id="${item.id}"] .panel-cell`);
+          if (!itemEl) {
+             // Fallback to internal math if DOM is temporarily missing
+             const innerWidth = format.width - 2 * canvasMargin;
+             const innerHeight = format.height - 2 * canvasMargin;
+             const matrixWidth = innerWidth + gapSize;
+             const matrixHeight = innerHeight + gapSize;
+             const cellWidth = matrixWidth / columns;
+             const cellHeight = matrixHeight / columns;
+             return {
+                x: canvasMargin + item.x * cellWidth,
+                y: canvasMargin + item.y * cellHeight,
+                width: Math.max(1, item.w * cellWidth - gapSize),
+                height: Math.max(1, item.h * cellHeight - gapSize),
+             };
+          }
 
-      return items.map((item) => ({
-        x: canvasMargin + gapSize + item.x * (cellWidth + gapSize),
-        y: canvasMargin + gapSize + item.y * (cellHeight + gapSize),
-        width: item.w * cellWidth + (item.w - 1) * gapSize,
-        height: item.h * cellHeight + (item.h - 1) * gapSize,
-      }));
-    },
+          const cellRect = itemEl.getBoundingClientRect();
+
+          // Calculate offset relative to the container block
+          const relativeX = cellRect.left - containerRect.left;
+          const relativeY = cellRect.top - containerRect.top;
+
+          return {
+            x: relativeX * scaleToFormat,
+            y: relativeY * scaleToFormat,
+            width: cellRect.width * scaleToFormat,
+            height: cellRect.height * scaleToFormat,
+          };
+        });
+      },
     [format, columns, gapSize, canvasMargin]
   );
+
+  const propRefs = useRef({ format, cornerRadius, strokeWidth, exportFormat, backgroundType, panelItems, gridToPixels });
+  useEffect(() => {
+    propRefs.current = { format, cornerRadius, strokeWidth, exportFormat, backgroundType, panelItems, gridToPixels };
+  }, [format, cornerRadius, strokeWidth, exportFormat, backgroundType, panelItems, gridToPixels]);
 
   // Handle export when trigger changes
   useEffect(() => {
     if (exportTrigger === 0) return;
+
+    const { format, cornerRadius, strokeWidth, exportFormat, backgroundType, panelItems, gridToPixels } = propRefs.current;
 
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = format.width;
@@ -108,7 +138,18 @@ const ExportCanvas: React.FC<ExportCanvasProps> = ({
     pixelBullets.forEach(({ x, y, width, height }) => {
       exportCtx.strokeStyle = 'black';
       exportCtx.lineWidth = strokeWidth;
-      roundRect(exportCtx, x, y, width, height, cornerRadius);
+      
+      const halfStroke = strokeWidth / 2;
+      const pathRadius = Math.max(0, cornerRadius - halfStroke);
+      
+      roundRect(
+        exportCtx, 
+        x + halfStroke, 
+        y + halfStroke, 
+        width - strokeWidth, 
+        height - strokeWidth, 
+        pathRadius
+      );
     });
 
     const mimeType = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';

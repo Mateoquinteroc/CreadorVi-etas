@@ -44,10 +44,12 @@ const GridPanel: React.FC<GridPanelProps> = ({
   const [isReady, setIsReady] = useState(false);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
 
-  const propRefs = useRef({ cornerRadius, strokeWidth });
+  const scale = format.width > 0 ? dimensions.w / format.width : 1;
+
+  const propRefs = useRef({ cornerRadius, strokeWidth, scale });
   useEffect(() => {
-    propRefs.current = { cornerRadius, strokeWidth };
-  }, [cornerRadius, strokeWidth]);
+    propRefs.current = { cornerRadius, strokeWidth, scale };
+  }, [cornerRadius, strokeWidth, scale]);
 
   // Update layout dimensions safely
   useEffect(() => {
@@ -87,8 +89,8 @@ const GridPanel: React.FC<GridPanelProps> = ({
 
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content panel-cell group cursor-pointer';
-    content.style.borderRadius = `${propRefs.current.cornerRadius}px`;
-    content.style.borderWidth = `${propRefs.current.strokeWidth}px`;
+    content.style.borderRadius = `${propRefs.current.cornerRadius * propRefs.current.scale}px`;
+    content.style.borderWidth = `${propRefs.current.strokeWidth * propRefs.current.scale}px`;
 
     // Panel number label
     const label = document.createElement('span');
@@ -118,10 +120,10 @@ const GridPanel: React.FC<GridPanelProps> = ({
       e.preventDefault(); e.stopPropagation();
       if (gridInstance.current) {
         const node = (el as any).gridstackNode;
-        const w = node?.w || parseInt(el.getAttribute('gs-w') || '1');
-        const h = node?.h || parseInt(el.getAttribute('gs-h') || '1');
-        const x = node?.x ?? parseInt(el.getAttribute('gs-x') || '0');
-        const y = node?.y ?? parseInt(el.getAttribute('gs-y') || '0');
+        const w = node?.w || parseInt(el.getAttribute('gs-w') || '1', 10);
+        const h = node?.h || parseInt(el.getAttribute('gs-h') || '1', 10);
+        const x = node?.x ?? parseInt(el.getAttribute('gs-x') || '0', 10);
+        const y = node?.y ?? parseInt(el.getAttribute('gs-y') || '0', 10);
         let maxNum = 0;
         gridInstance.current.getGridItems().forEach(elNode => {
            const id = elNode.getAttribute('gs-id');
@@ -186,7 +188,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
         maxRow: 0,
         row: 0,
         cellHeight: innerHeight > 0 ? (innerHeight / virtualGrid) : 'auto',
-        margin: gapSize,
+        margin: gapSize * scale,
         float: true,
         animate: true,
         resizable: {
@@ -203,25 +205,24 @@ const GridPanel: React.FC<GridPanelProps> = ({
     gridInstance.current = grid;
     setIsReady(true);
 
-    // Listen for layout changes
-    const handleChange = (_event: Event) => {
+    const handleChange = () => {
       if (isUpdatingFromProps.current) return;
 
       const allNodes = grid.getGridItems().map((el) => {
         const node = (el as any).gridstackNode;
         return {
-          id: node?.id || el.getAttribute('gs-id') || '',
-          x: node?.x ?? 0,
-          y: node?.y ?? 0,
-          w: node?.w ?? 1,
-          h: node?.h ?? 1,
+          id: el.getAttribute('gs-id') || '',
+          x: node?.x ?? parseInt(el.getAttribute('gs-x') || '0', 10),
+          y: node?.y ?? parseInt(el.getAttribute('gs-y') || '0', 10),
+          w: node?.w ?? parseInt(el.getAttribute('gs-w') || '1', 10),
+          h: node?.h ?? parseInt(el.getAttribute('gs-h') || '1', 10),
         };
       });
 
       onLayoutChange(allNodes);
     };
 
-    grid.on('added change removed', handleChange as any);
+    grid.on('added change removed dragstop', handleChange as any);
 
     // Auto-shrink logic when a panel is resized and pushes other panels
     let preResizeState: Record<string, any> = {};
@@ -288,7 +289,7 @@ const GridPanel: React.FC<GridPanelProps> = ({
          isUpdatingFromProps.current = false;
          
          // Trigger state update
-         handleChange(e as Event);
+         handleChange();
       }
     });
 
@@ -317,14 +318,13 @@ const GridPanel: React.FC<GridPanelProps> = ({
   // Dynamically update margins
   useEffect(() => {
     if (gridInstance.current && isReady) {
-      gridInstance.current.margin(gapSize as any);
+      gridInstance.current.margin((gapSize * scale) as any);
     }
-  }, [gapSize, isReady]);
+  }, [gapSize, scale, isReady]);
 
   // Dynamically update cell height
   useEffect(() => {
     if (gridInstance.current && isReady && dimensions.h > 0) {
-      const scale = format.width > 0 ? dimensions.w / format.width : 1;
       const paddingPx = canvasMargin * scale;
       const innerHeight = dimensions.h - 2 * paddingPx;
       gridInstance.current.cellHeight(Math.max(1, innerHeight / virtualGrid));
@@ -336,26 +336,26 @@ const GridPanel: React.FC<GridPanelProps> = ({
     if (!gridRef.current) return;
     const cells = gridRef.current.querySelectorAll('.panel-cell');
     cells.forEach((cell) => {
-      (cell as HTMLElement).style.borderRadius = `${cornerRadius}px`;
+      (cell as HTMLElement).style.borderRadius = `${cornerRadius * scale}px`;
     });
-  }, [cornerRadius]);
+  }, [cornerRadius, scale]);
 
   // Update stroke width on existing items without re-init
   useEffect(() => {
     if (!gridRef.current) return;
     const cells = gridRef.current.querySelectorAll('.panel-cell');
     cells.forEach((cell) => {
-      (cell as HTMLElement).style.borderWidth = `${strokeWidth}px`;
+      (cell as HTMLElement).style.borderWidth = `${Math.max(1, strokeWidth * scale)}px`;
     });
-  }, [strokeWidth]);
+  }, [strokeWidth, scale]);
 
-  const scale = format.width > 0 ? dimensions.w / format.width : 1;
   const paddingPx = canvasMargin * scale;
 
   return (
     <div className="grid-panel-wrapper" ref={wrapperRef}>
       <div 
-        className="canvas-container"
+        id="export-canvas-container"
+        className="canvas-container relative"
         style={{ 
           width: dimensions.w, 
           height: dimensions.h,
