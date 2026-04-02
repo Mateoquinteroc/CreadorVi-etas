@@ -1,154 +1,121 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import React, { useRef, useEffect, useCallback } from 'react';
+import type { PanelItem } from './GridPanel';
 
-interface BulletGeneratorProps {
+export type ExportFormat = 'png' | 'jpg';
+export type BackgroundType = 'white' | 'transparent';
+
+interface ExportCanvasProps {
   format: { width: number; height: number };
-  rows: number;
   columns: number;
-  isSymmetrical: boolean;
   gapSize: number;
   cornerRadius: number;
+  exportTrigger: number;
+  exportFormat: ExportFormat;
+  backgroundType: BackgroundType;
+  panelItems: PanelItem[];
 }
 
-const BulletGenerator: React.FC<BulletGeneratorProps> = ({
+/**
+ * Hidden canvas component that handles export only.
+ * It reads the GridStack layout (panelItems) and renders them to a canvas
+ * at full resolution for download.
+ */
+const ExportCanvas: React.FC<ExportCanvasProps> = ({
   format,
-  rows,
   columns,
-  isSymmetrical,
   gapSize,
   cornerRadius,
+  exportTrigger,
+  exportFormat,
+  backgroundType,
+  panelItems,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [bullets, setBullets] = useState<
-    { x: number; y: number; width: number; height: number }[]
-  >([]);
+  const roundRect = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number
+    ) => {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
+      ctx.stroke();
+    },
+    []
+  );
 
+  /**
+   * Convert GridStack grid units to pixel coordinates on the canvas.
+   * GridStack uses column-based positioning, so we need to map
+   * grid units to actual pixel positions matching the export format.
+   */
+    const gridToPixels = useCallback(
+      (items: PanelItem[]) => {
+        // Enforce the canvas virtual grid ratio for vertical sizing
+        const maxRow = columns; 
+
+        const cellWidth = (format.width - (columns + 1) * gapSize) / columns;
+        const cellHeight = (format.height - (maxRow + 1) * gapSize) / maxRow;
+
+      return items.map((item) => ({
+        x: gapSize + item.x * (cellWidth + gapSize),
+        y: gapSize + item.y * (cellHeight + gapSize),
+        width: item.w * cellWidth + (item.w - 1) * gapSize,
+        height: item.h * cellHeight + (item.h - 1) * gapSize,
+      }));
+    },
+    [format, columns, gapSize]
+  );
+
+  // Handle export when trigger changes
   useEffect(() => {
-    const totalGapWidth = (columns + 1) * gapSize;
-    const totalGapHeight = (rows + 1) * gapSize;
-    const maxBulletWidth = (format.width - totalGapWidth) / columns;
-    const maxBulletHeight = (format.height - totalGapHeight) / rows;
-    const newBullets: { x: number; y: number; width: number; height: number }[] = [];
+    if (exportTrigger === 0) return;
 
-    if (rows === 1) {
-      const squareSize = (format.width - totalGapWidth) / columns;
-      for (let col = 0; col < columns; col++) {
-        const x = gapSize + col * (squareSize + gapSize);
-        const y = (format.height - squareSize) / 2;
-        newBullets.push({ x, y, width: squareSize, height: squareSize });
-      }
-    } else {
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < columns; col++) {
-          let width = maxBulletWidth;
-          let height = maxBulletHeight;
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = format.width;
+    exportCanvas.height = format.height;
+    const exportCtx = exportCanvas.getContext('2d');
+    if (!exportCtx) return;
 
-          if (!isSymmetrical) {
-            width *= 0.7 + Math.random() * 0.3;
-            height *= 0.7 + Math.random() * 0.3;
-          }
+    const bg: BackgroundType =
+      exportFormat === 'jpg' ? 'white' : backgroundType;
 
-          const x =
-            gapSize + col * (maxBulletWidth + gapSize) + (maxBulletWidth - width) / 2;
-          const y =
-            gapSize +
-            row * (maxBulletHeight + gapSize) +
-            (maxBulletHeight - height) / 2;
-          newBullets.push({ x, y, width, height });
-        }
-      }
+    // Draw background
+    exportCtx.clearRect(0, 0, format.width, format.height);
+    if (bg === 'white') {
+      exportCtx.fillStyle = 'white';
+      exportCtx.fillRect(0, 0, format.width, format.height);
     }
 
-    setBullets(newBullets);
-  }, [format, rows, columns]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = format.width;
-    canvas.height = format.height;
-
-    const containerWidth = container.clientWidth * 0.9;
-    const containerHeight = container.clientHeight * 0.9;
-    const scaleX = containerWidth / format.width;
-    const scaleY = containerHeight / format.height;
-    const newScale = Math.min(scaleX, scaleY) * 0.9;
-    setScale(newScale);
-
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    bullets.forEach(({ x, y, width, height }) => {
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 2;
-      roundRect(ctx, x, y, width, height, cornerRadius);
+    // Convert grid positions to pixels and draw
+    const pixelBullets = gridToPixels(panelItems);
+    pixelBullets.forEach(({ x, y, width, height }) => {
+      exportCtx.strokeStyle = 'black';
+      exportCtx.lineWidth = 2;
+      roundRect(exportCtx, x, y, width, height, cornerRadius);
     });
-  }, [format, cornerRadius, bullets]);
 
-  const roundRect = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ) => {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + width, y, x + width, y + height, radius);
-    ctx.arcTo(x + width, y + height, x, y + height, radius);
-    ctx.arcTo(x, y + height, x, y, radius);
-    ctx.arcTo(x, y, x + width, y, radius);
-    ctx.closePath();
-    ctx.stroke();
-  };
+    const mimeType = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+    const quality = exportFormat === 'jpg' ? 0.92 : undefined;
+    const dataUrl = exportCanvas.toDataURL(mimeType, quality);
 
-  const handleExport = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.href = dataUrl;
-    link.download = 'comic_bullets.png';
+    link.download = `comic_panels.${exportFormat}`;
     link.click();
-  };
+  }, [exportTrigger]);
 
-  return (
-    <div className="flex flex-col items-center justify-center h-screen p-4">
-      <h2 className="text-2xl font-bold mb-4">Bullet Preview</h2>
-      <div className="relative w-full h-full max-w-full max-h-full flex items-center justify-center">
-        <div ref={containerRef} className="overflow-hidden flex items-center justify-center w-full h-full">
-          <canvas
-            ref={canvasRef}
-            className="border border-black"
-            style={{
-              width: `${format.width * scale}px`,
-              height: `${format.height * scale}px`,
-            }}
-          />
-        </div>
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -translate-y-[70%] mt-2 text-sm">
-          {format.width}px
-        </div>
-        <div className="absolute top-1/2 left-full transform -translate-y-1/2 ml-2 text-sm" style={{ writingMode: 'vertical-rl' }}>
-          {format.height}px
-        </div>
-      </div>
-      <Button onClick={handleExport} className="mt-4">
-        Export Preview
-      </Button>
-    </div>
-  );
+  // This component renders nothing visible
+  return null;
 };
 
-export default BulletGenerator;
+export default ExportCanvas;
