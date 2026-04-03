@@ -301,12 +301,23 @@ const GridPanel: React.FC<GridPanelProps> = ({
     };
   }, [virtualGrid, rows]); // Re-init strictly when dimensions change or structural rows change
 
-  // Sync added panels from outside (user clicked Add Panel)
+  // Sync added or removed panels from outside (e.g. user clicked Add Panel, changed rows/cols)
   useEffect(() => {
     if (!gridInstance.current || !isReady) return;
     const grid = gridInstance.current;
-    const existingIds = grid.getGridItems().map(el => el.getAttribute('gs-id'));
+    const existingElements = grid.getGridItems();
+    const existingIds = existingElements.map(el => el.getAttribute('gs-id'));
+    const newItemsIds = panelItems.map(item => item.id);
     
+    // Remove panels that are no longer in state
+    existingElements.forEach(el => {
+      const id = el.getAttribute('gs-id');
+      if (id && !newItemsIds.includes(id)) {
+        grid.removeWidget(el, true); // true = remove DOM node
+      }
+    });
+
+    // Add new panels that are in state but not in grid
     panelItems.forEach(item => {
       if (!existingIds.includes(item.id)) {
         const el = createPanelDOM(item);
