@@ -15,8 +15,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Download, Image, FileImage } from 'lucide-react';
+import { Download, Image, FileImage, FileType, Scissors } from 'lucide-react';
 import type { ExportFormat, BackgroundType } from './BulletGenerator';
+import { PANEL_TEMPLATES } from '@/lib/panelTemplates';
 
 const FORMAT_PRESETS: Record<string, { width: number; height: number } | null> = {
   'square': { width: 1080, height: 1080 },
@@ -47,6 +48,7 @@ interface ToolsBarProps {
   setRows: React.Dispatch<React.SetStateAction<number>>;
   columns: number;
   setColumns: React.Dispatch<React.SetStateAction<number>>;
+  onApplyTemplate: (templateId: string) => void;
   isSymmetrical: boolean;
   setIsSymmetrical: React.Dispatch<React.SetStateAction<boolean>>;
   gapSize: number;
@@ -57,6 +59,8 @@ interface ToolsBarProps {
   setCanvasMargin: React.Dispatch<React.SetStateAction<number>>;
   strokeWidth: number;
   setStrokeWidth: React.Dispatch<React.SetStateAction<number>>;
+  editVertices: boolean;
+  setEditVertices: React.Dispatch<React.SetStateAction<boolean>>;
   exportFormat: ExportFormat;
   setExportFormat: React.Dispatch<React.SetStateAction<ExportFormat>>;
   backgroundType: BackgroundType;
@@ -71,6 +75,7 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
   setRows,
   columns,
   setColumns,
+  onApplyTemplate,
   isSymmetrical,
   setIsSymmetrical,
   gapSize,
@@ -81,6 +86,8 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
   setCanvasMargin,
   strokeWidth,
   setStrokeWidth,
+  editVertices,
+  setEditVertices,
   exportFormat,
   setExportFormat,
   backgroundType,
@@ -88,6 +95,12 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
   onExport,
 }) => {
   const [selectedPreset, setSelectedPreset] = React.useState('square');
+  const [selectedTemplate, setSelectedTemplate] = React.useState('');
+
+  const handleTemplateChange = (value: string) => {
+    setSelectedTemplate(value);
+    onApplyTemplate(value);
+  };
 
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
@@ -170,6 +183,25 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
         </Label>
       </div>
 
+      <div className="space-y-2">
+        <Label className="text-xs">Plantilla de diseño</Label>
+        <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="Elegir una plantilla..." />
+          </SelectTrigger>
+          <SelectContent>
+            {PANEL_TEMPLATES.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Reemplaza las viñetas actuales por un diseño predefinido.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label htmlFor="rows" className="text-xs">Filas</Label>
@@ -197,13 +229,18 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="symmetrical"
-          checked={isSymmetrical}
-          onCheckedChange={setIsSymmetrical}
-        />
-        <Label htmlFor="symmetrical" className="text-sm">Viñetas simétricas</Label>
+      <div className="space-y-1">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="symmetrical"
+            checked={isSymmetrical}
+            onCheckedChange={setIsSymmetrical}
+          />
+          <Label htmlFor="symmetrical" className="text-sm">Viñetas simétricas</Label>
+        </div>
+        <p className="text-xs text-muted-foreground pl-[2.75rem]">
+          Al arrastrar o redimensionar una viñeta, su opuesta simétrica se ajusta igual.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -262,6 +299,22 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
         />
       </div>
 
+      <div className="space-y-1">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="editVertices"
+            checked={editVertices}
+            onCheckedChange={setEditVertices}
+          />
+          <Label htmlFor="editVertices" className="text-sm flex items-center gap-1">
+            <Scissors className="h-3.5 w-3.5" /> Editar vértices (cortes diagonales)
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground pl-[2.75rem]">
+          Arrastra las esquinas donde dos viñetas se tocan para crear cortes diagonales. El vecino se mantiene a la misma distancia automáticamente.
+        </p>
+      </div>
+
       <Separator />
 
       {/* ═══ EXPORT ═══ */}
@@ -289,7 +342,18 @@ const ToolsBar: React.FC<ToolsBarProps> = ({
                 <FileImage className="h-3.5 w-3.5" /> JPG
               </Label>
             </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="svg" id="fmt-svg" />
+              <Label htmlFor="fmt-svg" className="text-sm flex items-center gap-1 cursor-pointer">
+                <FileType className="h-3.5 w-3.5" /> SVG
+              </Label>
+            </div>
           </RadioGroup>
+          {exportFormat === 'svg' && (
+            <p className="text-xs text-muted-foreground italic">
+              Vectorial: se puede escalar a cualquier tamaño sin perder calidad.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
